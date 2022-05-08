@@ -1,27 +1,44 @@
 const fs = require("fs");
-const dotenv = require('dotenv');
-dotenv.config();
-const Papa = require("papaparse");
-const axios = require('axios').default;
+const path = require('path');
+
+// npm package for stringify data before save the CSV file
+const { stringify } = require("csv-stringify");
+
+// func for fetching data from api
+const { searchArtist } = require("../helpers/helperFunctions");
+
+// make it dynamic filename according to the search
+const filename = name => path.join(__dirname, "../csvFiles", `/${name}.csv`);
+
+// wished column names for csv file
+const columns = [
+  "name",
+  "mbid",
+  "url",
+  "image[0].#text",
+  "image"
+];
 
 
-let getUrl = (name) => `http://ws.audioscrobbler.com/2.0/?method=artist.search&artist=${name}&api_key=${process.env.API_KEY}&format=json`;
-
-
-async function searchArtist(name) {
-  try {
-
-    const response = await axios.get(getUrl(name));
-    return response.data
-  } catch (error) {
-    console.error("error");
-  }
-}
 exports.handleArtistSearch = async (req, res) => {
   try {
     const data = await searchArtist(req.params.name)
-    return res.json({ data })
+    const { artist } = data.results.artistmatches
+
+    // stringify the destructered results and then write them into the CSV file
+    stringify(artist, {
+      header: true, columns
+    }, function (err, output) {
+      if (err) throw err;
+      fs.writeFile(filename(req.params.name), output, function (err, result) {
+        if (err) console.log('error', err);
+      });
+    })
+
+    return res.status(200).send("CSV file successfully written!")
+
   } catch (error) {
-    return res.send("error in search")
+    console.log(error);
+    return res.status(500).send("error in search")
   }
 }
